@@ -81,14 +81,19 @@
         <!-- receipt entry -->
         <div id="receipt-form" style="display:none;">
           <div class="banner" id="ocr-banner">영수증 사진에서 글자를 읽어 품목과 가격 후보를 채워줘요. 인식은 이 기기 안에서만 처리되고, 첫 실행 시 인식 엔진 데이터를 한 번 내려받아요(수 MB, Wi-Fi 권장). 자동 인식은 완벽하지 않으니 저장 전에 꼭 확인해주세요.</div>
-          <div class="drop" id="drop-zone">
-            <input type="file" id="receipt-file" accept="image/*" capture="environment" />
+          <div class="drop" id="drop-zone" style="cursor:default;">
             <img id="receipt-preview" style="display:none;" alt="영수증 미리보기" />
             <div id="drop-copy">
-              <div class="drop-label">📷 영수증 사진 선택 / 촬영</div>
-              <div>탭해서 카메라로 찍거나 사진을 선택하세요</div>
+              <div class="drop-label">🧾 영수증 사진 준비</div>
+              <div>아래 버튼 중 하나를 선택하세요</div>
             </div>
           </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+            <button type="button" class="btn btn-ghost" id="pick-camera-btn">📷 카메라로 촬영</button>
+            <button type="button" class="btn btn-ghost" id="pick-gallery-btn">🖼️ 갤러리에서 선택</button>
+          </div>
+          <input type="file" id="receipt-file-camera" accept="image/*" capture="environment" style="display:none;" />
+          <input type="file" id="receipt-file-gallery" accept="image/*" style="display:none;" />
           <button type="button" class="btn btn-primary" id="analyze-btn" disabled style="margin-top:12px;">영수증 분석하기</button>
           <div id="receipt-status"></div>
           <div id="receipt-result"></div>

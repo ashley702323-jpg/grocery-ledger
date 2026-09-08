@@ -159,7 +159,10 @@
   });
 
   // ---------- receipt OCR (Tesseract.js, fully on-device) ----------
-  var receiptFile = document.getElementById("receipt-file");
+  var receiptFileCamera = document.getElementById("receipt-file-camera");
+  var receiptFileGallery = document.getElementById("receipt-file-gallery");
+  var pickCameraBtn = document.getElementById("pick-camera-btn");
+  var pickGalleryBtn = document.getElementById("pick-gallery-btn");
   var receiptPreview = document.getElementById("receipt-preview");
   var dropCopy = document.getElementById("drop-copy");
   var dropZone = document.getElementById("drop-zone");
@@ -173,8 +176,10 @@
     modeReceiptBtn.title = "인식 엔진을 불러오지 못했어요 (오프라인 상태일 수 있어요)";
   }
 
-  receiptFile.addEventListener("change", function () {
-    var f = receiptFile.files && receiptFile.files[0];
+  pickCameraBtn.addEventListener("click", function () { receiptFileCamera.click(); });
+  pickGalleryBtn.addEventListener("click", function () { receiptFileGallery.click(); });
+
+  function handleFileChosen(f) {
     if (!f) return;
     currentFile = f;
     var url = URL.createObjectURL(f);
@@ -185,6 +190,12 @@
     analyzeBtn.disabled = false;
     resultEl.innerHTML = "";
     statusEl.innerHTML = "";
+  }
+  receiptFileCamera.addEventListener("change", function () {
+    handleFileChosen(receiptFileCamera.files && receiptFileCamera.files[0]);
+  });
+  receiptFileGallery.addEventListener("change", function () {
+    handleFileChosen(receiptFileGallery.files && receiptFileGallery.files[0]);
   });
 
   analyzeBtn.addEventListener("click", async function () {
@@ -371,7 +382,8 @@
       receiptPreview.style.display = "none";
       dropCopy.style.display = "";
       dropZone.classList.remove("has-file");
-      receiptFile.value = "";
+      receiptFileCamera.value = "";
+      receiptFileGallery.value = "";
       analyzeBtn.disabled = true;
     });
   }
