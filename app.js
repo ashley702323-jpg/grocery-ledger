@@ -395,12 +395,60 @@
     handleFileChosen(receiptFileGallery.files && receiptFileGallery.files[0]);
   });
 
+  // grayscale + contrast-stretch the photo before OCR — a hand-held photo of
+  // a curled receipt (uneven lighting, background showing through, low
+  // contrast) reads far better once normalized like this than as a raw
+  // phone photo; also caps resolution so recognition stays reasonably fast.
+  function preprocessForOcr(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var maxDim = 1800;
+        var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width * scale));
+        var h = Math.max(1, Math.round(img.height * scale));
+        var canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        try {
+          var imgData = ctx.getImageData(0, 0, w, h);
+          var d = imgData.data;
+          var n = w * h;
+          var gray = new Uint8ClampedArray(n);
+          var min = 255, max = 0;
+          for (var i = 0, p = 0; p < n; i += 4, p++) {
+            var l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            gray[p] = l;
+            if (l < min) min = l;
+            if (l > max) max = l;
+          }
+          var range = Math.max(1, max - min);
+          for (var j = 0, q = 0; q < n; j += 4, q++) {
+            var v = ((gray[q] - min) / range) * 255;
+            d[j] = d[j + 1] = d[j + 2] = v;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        } catch (e) {
+          console.warn("preprocess skipped", e);
+        }
+        canvas.toBlob(function (blob) {
+          blob ? resolve(blob) : reject(new Error("toBlob failed"));
+        }, "image/png");
+      };
+      img.onerror = function (e) { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
   analyzeBtn.addEventListener("click", async function () {
     if (!currentFile || typeof Tesseract === "undefined") return;
     analyzeBtn.disabled = true;
     resultEl.innerHTML = "";
     statusEl.innerHTML =
-      '<div class="status-line"><span class="spinner"></span><span id="ocr-status-text">인식 엔진을 준비하는 중...</span></div>' +
+      '<div class="status-line"><span class="spinner"></span><span id="ocr-status-text">사진을 다듬는 중...</span></div>' +
       '<div class="progress"><div class="progress-fill" id="ocr-progress"></div></div>';
     var progressFill = document.getElementById("ocr-progress");
     var statusText = document.getElementById("ocr-status-text");
@@ -413,13 +461,20 @@
       "recognizing text": "글자 인식 중",
     };
 
+    var worker = null;
     try {
-      var result = await Tesseract.recognize(currentFile, "kor+eng", {
+      var processed = await preprocessForOcr(currentFile);
+      worker = await Tesseract.createWorker(["kor", "eng"], 1, {
         logger: function (m) {
           if (m.progress != null) progressFill.style.width = Math.round(m.progress * 100) + "%";
           if (m.status) statusText.textContent = (STAGE_LABEL[m.status] || m.status) + "...";
         },
       });
+      // PSM 6 (uniform block of text) reads a receipt's stacked lines more
+      // reliably than the default "auto page layout" mode.
+      var psm = (typeof Tesseract.PSM !== "undefined" && Tesseract.PSM.SINGLE_BLOCK) || "6";
+      await worker.setParameters({ tessedit_pageseg_mode: psm });
+      var result = await worker.recognize(processed);
       var text = (result && result.data && result.data.text) || "";
       statusEl.innerHTML = "";
       renderParsedResult(text);
@@ -427,6 +482,7 @@
       console.warn("ocr failed", err);
       statusEl.innerHTML = '<div class="banner warn">인식에 실패했어요. 네트워크 상태를 확인하거나 다른 사진으로 시도해주세요.</div>';
     } finally {
+      if (worker) { try { await worker.terminate(); } catch (e) { /* ignore */ } }
       analyzeBtn.disabled = false;
     }
   });
