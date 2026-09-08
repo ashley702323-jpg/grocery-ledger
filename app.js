@@ -395,16 +395,20 @@
     handleFileChosen(receiptFileGallery.files && receiptFileGallery.files[0]);
   });
 
-  // grayscale + contrast-stretch the photo before OCR — a hand-held photo of
-  // a curled receipt (uneven lighting, background showing through, low
-  // contrast) reads far better once normalized like this than as a raw
-  // phone photo; also caps resolution so recognition stays reasonably fast.
+  // grayscale + local adaptive threshold (Bradley-Roth style) before OCR.
+  // A hand-held photo of a curled receipt usually has a lighting gradient
+  // across it (brighter on one side, shadowed on the other) — a single
+  // global brightness cutoff turns part of it solid black or white and
+  // destroys the text there, so this compares each pixel to the AVERAGE
+  // of its own neighborhood instead, which holds up under uneven light.
+  // Also keeps resolution high (thermal-receipt dot-matrix text is tiny —
+  // downscaling too far is what was blurring it into noise before).
   function preprocessForOcr(file) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file);
       var img = new Image();
       img.onload = function () {
-        var maxDim = 1800;
+        var maxDim = 2200;
         var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
         var w = Math.max(1, Math.round(img.width * scale));
         var h = Math.max(1, Math.round(img.height * scale));
@@ -417,18 +421,36 @@
           var imgData = ctx.getImageData(0, 0, w, h);
           var d = imgData.data;
           var n = w * h;
-          var gray = new Uint8ClampedArray(n);
-          var min = 255, max = 0;
+          var gray = new Float64Array(n);
           for (var i = 0, p = 0; p < n; i += 4, p++) {
-            var l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-            gray[p] = l;
-            if (l < min) min = l;
-            if (l > max) max = l;
+            gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
           }
-          var range = Math.max(1, max - min);
-          for (var j = 0, q = 0; q < n; j += 4, q++) {
-            var v = ((gray[q] - min) / range) * 255;
-            d[j] = d[j + 1] = d[j + 2] = v;
+
+          // integral image of grayscale values for O(1) windowed averages
+          var stride = w + 1;
+          var integral = new Float64Array(stride * (h + 1));
+          for (var y = 0; y < h; y++) {
+            var rowSum = 0;
+            for (var x = 0; x < w; x++) {
+              rowSum += gray[y * w + x];
+              integral[(y + 1) * stride + (x + 1)] = integral[y * stride + (x + 1)] + rowSum;
+            }
+          }
+
+          var radius = Math.max(12, Math.round(Math.min(w, h) / 14));
+          var bias = 0.90; // pixel counts as "ink" when below 90% of its neighborhood's average
+          for (var yy = 0; yy < h; yy++) {
+            var y0 = Math.max(0, yy - radius), y1 = Math.min(h - 1, yy + radius);
+            for (var xx = 0; xx < w; xx++) {
+              var x0 = Math.max(0, xx - radius), x1 = Math.min(w - 1, xx + radius);
+              var sum = integral[(y1 + 1) * stride + (x1 + 1)] - integral[y0 * stride + (x1 + 1)] -
+                integral[(y1 + 1) * stride + x0] + integral[y0 * stride + x0];
+              var count = (x1 - x0 + 1) * (y1 - y0 + 1);
+              var localMean = sum / count;
+              var idx = (yy * w + xx) * 4;
+              var v = gray[yy * w + xx] < localMean * bias ? 0 : 255;
+              d[idx] = d[idx + 1] = d[idx + 2] = v;
+            }
           }
           ctx.putImageData(imgData, 0, 0);
         } catch (e) {
