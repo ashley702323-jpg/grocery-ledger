@@ -225,27 +225,76 @@
 
   // heuristic Korean/English receipt line parser: best-effort, meant to be
   // confirmed/edited by the person before saving, not to be perfectly accurate.
-  var EXCLUDE_RE = /(합계|소계|과세|면세|부가세|VAT|카드|현금|거스름|잔액|받은\s*금액|승인|가맹점|사업자|대표자|전화|TEL|영수증|감사합니다|고객|매장|주소|매출|품명|단가|수량|금액|포인트|적립|할인율|결제|바코드|No\.|사업자등록번호|봉투)/i;
+  // Handles two common layouts, tolerant of column count/order so it isn't
+  // tied to one store's exact receipt format:
+  //  1) "품목명 ......... 가격" on one line (paper POS receipts)
+  //  2) "01  품목명"  then a separate numbers-only line (바코드/단가/수량/금액
+  //     in any order) whose last plausible price is taken as the amount —
+  //     common on mobile/e-receipts, e.g. 이마트/SSG 모바일 영수증
+  var EXCLUDE_RE = /(합계|소계|과세|면세|부가세|VAT|카드|현금|거스름|잔액|받은금액|승인|가맹점|사업자|대표자|전화|TEL|영수증|감사합니다|고객|매장|주소|매출|품명|단가|수량|금액|포인트|적립|할인율|결제|바코드|No\.|사업자등록번호|봉투|일시불|할부|POS)/i;
+  var MASK_RE = /\*{2,}/; // masked card numbers etc., e.g. 97101500**000*
   var PRICE_RE = /([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})\s*원?\s*$/;
   var QTY_RE = /(?:^|\s)([0-9]+)\s*[xX×]\s*/;
+  var ITEM_HEAD_RE = /^(\d{1,3})\*?\s+(.+)$/; // "01  품목명" / "05* 품목명"
+  // a line made up of only digits/commas/dots/dashes/spaces (barcode + price
+  // columns, in ANY order/count) — not tied to one store's exact column layout
+  var NUMERIC_LINE_RE = /^[0-9,.\-\s]+$/;
+
+  function isExcludedLine(line) {
+    return EXCLUDE_RE.test(line.replace(/\s+/g, "")) || MASK_RE.test(line);
+  }
 
   function parseReceiptText(text) {
     var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
     var items = [];
-    lines.forEach(function (line) {
-      if (EXCLUDE_RE.test(line)) return;
+    var consumed = {};
+
+    for (var i = 0; i < lines.length; i++) {
+      if (consumed[i]) continue;
+      var line = lines[i];
+      if (isExcludedLine(line)) continue;
+
+      var head = line.match(ITEM_HEAD_RE);
+      if (head) {
+        var headName = head[2].trim();
+        var inline = headName.match(PRICE_RE);
+        if (inline) {
+          var inlinePrice = Number(inline[1].replace(/,/g, ""));
+          var inlineName = headName.slice(0, inline.index).trim();
+          if (isFinite(inlinePrice) && inlinePrice >= 100 && inlineName) {
+            items.push({ name: inlineName, price: inlinePrice, qty: "" });
+            continue;
+          }
+        }
+        var next = lines[i + 1];
+        if (next && !isExcludedLine(next) && NUMERIC_LINE_RE.test(next)) {
+          var nm = next.match(PRICE_RE);
+          if (nm) {
+            var amount = Number(nm[1].replace(/,/g, ""));
+            if (isFinite(amount) && amount >= 100) {
+              items.push({ name: headName, price: amount, qty: "" });
+              consumed[i + 1] = true;
+              continue;
+            }
+          }
+        }
+        continue; // numbered line but no price found nearby — skip rather than guess
+      }
+
+      if (NUMERIC_LINE_RE.test(line)) continue; // stray barcode/qty-only line not attached to a name
       var m = line.match(PRICE_RE);
-      if (!m) return;
+      if (!m) continue;
       var price = Number(m[1].replace(/,/g, ""));
-      if (!isFinite(price) || price < 100) return;
+      if (!isFinite(price) || price < 100) continue;
       var namePart = line.slice(0, m.index).trim();
       var qty = "";
       var qm = namePart.match(QTY_RE);
       if (qm) { qty = qm[1] + "개"; namePart = namePart.replace(QTY_RE, " ").trim(); }
       namePart = namePart.replace(/[\-*.]{2,}$/, "").replace(/^\d+\s+/, "").trim();
-      if (!namePart || /^[0-9\s,.\-]+$/.test(namePart)) return;
+      if (!namePart || /^[0-9\s,.\-]+$/.test(namePart)) continue;
       items.push({ name: namePart, price: price, qty: qty });
-    });
+    }
+
     // guess a date if one appears anywhere in the receipt
     var dateMatch = text.match(/(20\d{2})[.\-\/년]\s?(\d{1,2})[.\-\/월]\s?(\d{1,2})/);
     var date = dateMatch
