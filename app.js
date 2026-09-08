@@ -486,7 +486,13 @@
     var worker = null;
     try {
       var processed = await preprocessForOcr(currentFile);
-      worker = await Tesseract.createWorker(["kor", "eng"], 1, {
+      // "best" (higher-accuracy, larger) Korean model instead of the default
+      // "fast" one — meaningfully better on small/noisy receipt text. Korean
+      // alone (no "eng") on purpose: its charset already covers digits/punct,
+      // which is most of what a price line needs, and dropping "eng" removes
+      // a source of glyph-shape confusion between the two models.
+      worker = await Tesseract.createWorker(["kor"], 1, {
+        langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/kor@1.0.0/4.0.0_best_int",
         logger: function (m) {
           if (m.progress != null) progressFill.style.width = Math.round(m.progress * 100) + "%";
           if (m.status) statusText.textContent = (STAGE_LABEL[m.status] || m.status) + "...";
