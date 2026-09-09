@@ -361,6 +361,25 @@
     if (statusToggle) statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b.dataset.status === "bought"); });
   });
 
+  // load the OCR library only once the receipt tab is actually opened,
+  // instead of on every page load — it's a sizeable script + WASM engine,
+  // and pulling it in unconditionally was adding real memory pressure on
+  // lower-end phones (Samsung Internet in particular) for the majority of
+  // visits that never touch OCR at all.
+  var tesseractLoadPromise = null;
+  function loadTesseract() {
+    if (typeof Tesseract !== "undefined") return Promise.resolve();
+    if (tesseractLoadPromise) return tesseractLoadPromise;
+    tesseractLoadPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+      s.onload = function () { resolve(); };
+      s.onerror = function () { tesseractLoadPromise = null; reject(new Error("tesseract load failed")); };
+      document.head.appendChild(s);
+    });
+    return tesseractLoadPromise;
+  }
+
   // ---------- mode toggle ----------
   var modeManualBtn = document.getElementById("mode-manual");
   var modeReceiptBtn = document.getElementById("mode-receipt");
@@ -371,6 +390,7 @@
   modeReceiptBtn.addEventListener("click", function () {
     modeReceiptBtn.classList.add("active"); modeManualBtn.classList.remove("active");
     manualForm.style.display = "none"; document.getElementById("receipt-form").style.display = "";
+    loadTesseract().catch(function (e) { console.warn("tesseract preload failed", e); });
   });
 
   // ---------- receipt OCR (Tesseract.js, fully on-device) ----------
@@ -385,11 +405,6 @@
   var statusEl = document.getElementById("receipt-status");
   var resultEl = document.getElementById("receipt-result");
   var currentFile = null;
-
-  if (typeof Tesseract === "undefined") {
-    modeReceiptBtn.disabled = true;
-    modeReceiptBtn.title = "인식 엔진을 불러오지 못했어요 (오프라인 상태일 수 있어요)";
-  }
 
   pickCameraBtn.addEventListener("click", function () { receiptFileCamera.click(); });
   pickGalleryBtn.addEventListener("click", function () { receiptFileGallery.click(); });
@@ -484,11 +499,11 @@
   }
 
   analyzeBtn.addEventListener("click", async function () {
-    if (!currentFile || typeof Tesseract === "undefined") return;
+    if (!currentFile) return;
     analyzeBtn.disabled = true;
     resultEl.innerHTML = "";
     statusEl.innerHTML =
-      '<div class="status-line"><span class="spinner"></span><span id="ocr-status-text">사진을 다듬는 중...</span></div>' +
+      '<div class="status-line"><span class="spinner"></span><span id="ocr-status-text">인식 엔진을 불러오는 중...</span></div>' +
       '<div class="progress"><div class="progress-fill" id="ocr-progress"></div></div>';
     var progressFill = document.getElementById("ocr-progress");
     var statusText = document.getElementById("ocr-status-text");
@@ -503,6 +518,8 @@
 
     var worker = null;
     try {
+      await loadTesseract();
+      statusText.textContent = "사진을 다듬는 중...";
       var processed = await preprocessForOcr(currentFile);
       // "best" (higher-accuracy, larger) Korean model instead of the default
       // "fast" one — meaningfully better on small/noisy receipt text. Korean
