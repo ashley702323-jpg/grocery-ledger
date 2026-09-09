@@ -319,6 +319,15 @@
   });
   addPhotoRemoveBtn.addEventListener("click", resetAddPhoto);
 
+  var statusToggle = document.getElementById("f-status-toggle");
+  var currentStatus = "bought";
+  statusToggle.querySelectorAll("button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      currentStatus = btn.dataset.status;
+      statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b === btn); });
+    });
+  });
+
   manualForm.addEventListener("submit", function (e) {
     e.preventDefault();
     var name = document.getElementById("f-name").value.trim();
@@ -334,13 +343,15 @@
     addPurchase({
       itemName: name, store: store, price: price, date: date,
       qty: qtyDisplay(qtyAmount, qtyUnit), qtyAmount: qtyAmount, qtyUnit: qtyUnit,
-      note: note, source: "manual", photoId: photoId,
+      note: note, source: "manual", photoId: photoId, status: currentStatus,
     });
     manualForm.reset();
     document.getElementById("f-date").value = new Date().toISOString().slice(0, 10);
     unitPricePreview.textContent = "";
     resetAddPhoto();
     updateAddQuickSearch();
+    currentStatus = "bought";
+    statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b.dataset.status === "bought"); });
   });
 
   // ---------- mode toggle ----------
@@ -742,7 +753,12 @@
       return '<option value="' + u + '"' + (u === (unit || "") ? " selected" : "") + ">" + label + "</option>";
     }).join("");
     var photoUrl = getPhotoUrl(r.photoId);
+    var status = r.status === "planned" ? "planned" : "bought";
     return '<div class="rec-edit" data-id="' + escAttr(r.id) + '">' +
+      '<div class="status-toggle ed-status-toggle" style="margin-bottom:14px;">' +
+      '<button type="button" data-status="bought" class="' + (status === "bought" ? "active" : "") + '">✅ 구매완료</button>' +
+      '<button type="button" data-status="planned" class="' + (status === "planned" ? "active" : "") + '">🛒 살 예정</button>' +
+      "</div>" +
       '<div class="field"><label>상품명</label><input type="text" class="ed-name" value="' + escAttr(r.itemName) + '"/></div>' +
       '<div class="row2">' +
       '<div class="field"><label>구매처</label><input type="text" class="ed-store" list="dl-stores" value="' + escAttr(r.store) + '"/></div>' +
@@ -805,14 +821,16 @@
         var unitInfo = unitPriceInfo(r);
         var unitBit = unitInfo ? " · " + unitInfo.label + " " + fmtWon(Math.round(unitInfo.value)) : "";
         var photoUrl = getPhotoUrl(r.photoId);
+        var isPlanned = r.status === "planned";
         html += '<div class="rec" data-id="' + escAttr(r.id) + '">' +
           (selectMode ? '<input type="checkbox" class="rec-check"' + checked + ' data-id="' + escAttr(r.id) + '"/>' : "") +
           (photoUrl ? '<img class="rec-thumb" src="' + escAttr(photoUrl) + '" alt=""/>' : "") +
           '<div class="rec-main" data-id="' + escAttr(r.id) + '" style="cursor:pointer;">' +
-          '<p class="rec-name">' + escAttr(r.itemName) + "</p>" +
+          '<p class="rec-name">' + escAttr(r.itemName) + (isPlanned ? '<span class="badge badge-planned">🛒 살 예정</span>' : "") + "</p>" +
           '<p class="rec-sub">' + escAttr(r.store) + (r.qty ? " · " + escAttr(r.qty) : "") + escHtml(unitBit) + "</p>" +
           "</div>" +
-          '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+          (isPlanned && !selectMode ? '<button type="button" class="rec-quick-btn rec-mark-bought" data-id="' + escAttr(r.id) + '">완료로 표시</button>' : "") +
           '<span class="rec-price">' + fmtWon(r.price) + "</span>" +
           (selectMode ? "" : '<button class="rec-del" aria-label="삭제" data-id="' + escAttr(r.id) + '">×</button>') +
           "</div>" +
@@ -826,6 +844,13 @@
       btn.addEventListener("click", function () {
         var id = btn.dataset.id;
         if (confirm("이 기록을 삭제할까요?")) deletePurchase(id);
+      });
+    });
+
+    listEl.querySelectorAll(".rec-mark-bought").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        updatePurchase(btn.dataset.id, { status: "bought" });
       });
     });
 
@@ -871,6 +896,14 @@
 
       var record = state.purchases.find(function (p) { return p.id === id; });
       var currentPhotoId = record ? record.photoId : null;
+      var editStatus = record && record.status === "planned" ? "planned" : "bought";
+      var edStatusToggle = row.querySelector(".ed-status-toggle");
+      edStatusToggle.querySelectorAll("button").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          editStatus = btn.dataset.status;
+          edStatusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        });
+      });
       var pendingPhoto = { changed: false, dataUrl: null }; // changed+dataUrl=null means "removed"
       var edPhotoInput = row.querySelector(".ed-photo-input");
       var edPhotoRemove = row.querySelector(".ed-photo-remove");
@@ -918,7 +951,7 @@
         updatePurchase(id, {
           itemName: name, store: store, price: price, date: date,
           qty: qtyDisplay(qtyAmount, qtyUnit), qtyAmount: qtyAmount, qtyUnit: qtyUnit,
-          photoId: photoId,
+          photoId: photoId, status: editStatus,
         });
       });
     });
@@ -986,6 +1019,7 @@
       html += '<div class="cmp-row' + (i === 0 ? " best" : "") + '">' +
         '<div><span class="cmp-store">' + escAttr(r.store) + "</span>" +
         (i === 0 ? '<span class="badge">' + (useUnitBasis ? info.label + " 최저" : "최저가") + "</span>" : "") +
+        (r.status === "planned" ? '<span class="badge badge-planned">🛒 살 예정</span>' : "") +
         '<div class="cmp-date">' + fmtDateShort(r.date) + (r.qty ? " · " + escAttr(r.qty) : "") + escHtml(unitBit) + "</div></div>" +
         '<span class="cmp-price">' + fmtWon(r.price) + "</span>" +
         "</div>";

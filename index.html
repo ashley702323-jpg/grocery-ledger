@@ -40,6 +40,10 @@
 
         <!-- manual entry -->
         <form id="manual-form">
+          <div class="status-toggle" id="f-status-toggle">
+            <button type="button" data-status="bought" class="active">✅ 구매완료</button>
+            <button type="button" data-status="planned">🛒 살 예정</button>
+          </div>
           <div class="field">
             <label for="f-name">상품명</label>
             <input type="text" id="f-name" list="dl-items" placeholder="예: 계란 한 판" required />

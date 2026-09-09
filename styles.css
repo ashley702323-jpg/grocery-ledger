@@ -111,6 +111,14 @@ input:focus, select:focus, textarea:focus{ outline:2px solid var(--accent); outl
 .mode-toggle button.active{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
 .mode-toggle button:disabled{ opacity:.4; cursor:not-allowed; }
 
+.status-toggle{ display:flex; gap:6px; background:var(--surface-2); border:1px solid var(--border); border-radius:11px; padding:4px; margin-bottom:16px; }
+.status-toggle button{
+  flex:1; border:none; background:transparent; padding:9px; border-radius:8px;
+  font-weight:700; font-size:13px; color:var(--muted); cursor:pointer;
+}
+.status-toggle button.active[data-status="bought"]{ background:var(--accent-soft); color:var(--accent); }
+.status-toggle button.active[data-status="planned"]{ background:var(--warn-soft); color:var(--warn); }
+
 .drop{
   border:1.5px dashed var(--border); border-radius:12px; padding:22px 16px; text-align:center;
   color:var(--muted); font-size:13px; cursor:pointer; position:relative; background:var(--surface-2);
@@ -217,6 +225,12 @@ input:focus, select:focus, textarea:focus{ outline:2px solid var(--accent); outl
 .badge{
   font-size:10px; font-weight:700; background:var(--accent); color:var(--accent-ink);
   padding:2px 7px; border-radius:99px; letter-spacing:.02em; margin-left:6px;
+}
+.badge-planned{ background:var(--warn-soft); color:var(--warn); }
+
+.rec-quick-btn{
+  font-size:11px; font-weight:700; color:var(--accent); background:var(--accent-soft);
+  border:none; border-radius:99px; padding:4px 9px; cursor:pointer; white-space:nowrap;
 }
 
 .banner{
