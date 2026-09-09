@@ -46,8 +46,7 @@
           </div>
           <div class="field">
             <label for="f-name">상품명</label>
-            <input type="text" id="f-name" list="dl-items" placeholder="예: 계란 한 판" required />
-            <datalist id="dl-items"></datalist>
+            <input type="text" id="f-name" placeholder="예: 계란 한 판" autocomplete="off" required />
           </div>
           <div class="quick-search" id="add-quick-search" style="display:none;">
             <span class="quick-search-label">온라인 최저가 검색</span>
@@ -58,8 +57,7 @@
           <div class="field row2">
             <div>
               <label for="f-store">구매처</label>
-              <input type="text" id="f-store" list="dl-stores" placeholder="예: 이마트" required />
-              <datalist id="dl-stores"></datalist>
+              <input type="text" id="f-store" placeholder="예: 이마트" autocomplete="off" required />
             </div>
             <div>
               <label for="f-date">날짜</label>
@@ -134,14 +132,14 @@
     <section class="panel" id="panel-records">
       <div style="display:flex; gap:8px; margin-bottom:4px;">
         <div class="field search" style="flex:1; margin-bottom:0;">
-          <input type="text" id="search-records" placeholder="상품명 또는 구매처 검색" />
+          <input type="text" id="search-records" placeholder="상품명 또는 구매처 검색" autocomplete="off" />
         </div>
         <button type="button" class="btn btn-ghost" id="select-mode-btn" style="flex:none;">선택</button>
       </div>
       <p class="hint" id="records-hint" style="margin:0 2px 4px;">항목을 탭하면 내용을 수정할 수 있어요.</p>
       <div class="bulk-bar" id="bulk-bar" style="display:none;">
         <span id="bulk-count">0개 선택</span>
-        <input type="text" id="bulk-store" list="dl-stores" placeholder="구매처 입력" />
+        <input type="text" id="bulk-store" placeholder="구매처 입력" autocomplete="off" />
         <button type="button" class="btn btn-primary" id="bulk-apply-btn" style="width:auto;">일괄 적용</button>
         <button type="button" class="btn btn-ghost" id="bulk-cancel-btn" style="width:auto;">취소</button>
       </div>
@@ -155,8 +153,7 @@
         <p class="hint">기록된 상품명을 선택하면 구매처별 가격을 낮은 순으로 보여드려요.</p>
         <div class="field">
           <label for="cmp-select">상품 선택</label>
-          <input type="text" id="cmp-select" list="dl-items-cmp" placeholder="예: 계란 한 판" />
-          <datalist id="dl-items-cmp"></datalist>
+          <input type="text" id="cmp-select" placeholder="예: 계란 한 판" autocomplete="off" />
         </div>
         <div class="quick-search" id="cmp-quick-search" style="display:none;">
           <span class="quick-search-label">온라인 최저가 검색</span>

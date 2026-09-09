@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  try {
 
   // ---------- unit price helpers (100g / 100ml / per-unit) ----------
   var UNIT_LABEL = { g: "g", kg: "kg", ml: "ml", l: "L", ea: "개" };
@@ -62,6 +63,7 @@
     var coupangEl = document.getElementById(prefix + "-coupang");
     var gmarketEl = document.getElementById(prefix + "-gmarket");
     var naverEl = document.getElementById(prefix + "-naver");
+    if (!container || !coupangEl || !gmarketEl || !naverEl) return function () {};
     return function () {
       var q = (getQuery() || "").trim();
       if (!q) { container.style.display = "none"; return; }
@@ -156,7 +158,6 @@
   }
 
   function renderAll() {
-    renderDatalists();
     renderRecords();
     renderCompare();
   }
@@ -293,40 +294,46 @@
   var addPhotoRemoveBtn = document.getElementById("add-photo-remove-btn");
   var pendingPhotoDataUrl = null;
 
+  var hasPhotoUi = addPhotoInput && addPhotoPreview && addPhotoCopy && addPhotoDrop && addPhotoRemoveBtn;
   function resetAddPhoto() {
     pendingPhotoDataUrl = null;
+    if (!hasPhotoUi) return;
     addPhotoInput.value = "";
     addPhotoPreview.style.display = "none";
     addPhotoCopy.style.display = "";
     addPhotoDrop.classList.remove("has-file");
     addPhotoRemoveBtn.style.display = "none";
   }
-  addPhotoInput.addEventListener("change", async function () {
-    var f = addPhotoInput.files && addPhotoInput.files[0];
-    if (!f) return;
-    try {
-      pendingPhotoDataUrl = await fileToThumbnailDataUrl(f, 480, 0.75);
-    } catch (e) {
-      console.warn("photo resize failed", e);
-      pendingPhotoDataUrl = null;
-      return;
-    }
-    addPhotoPreview.src = pendingPhotoDataUrl;
-    addPhotoPreview.style.display = "block";
-    addPhotoCopy.style.display = "none";
-    addPhotoDrop.classList.add("has-file");
-    addPhotoRemoveBtn.style.display = "";
-  });
-  addPhotoRemoveBtn.addEventListener("click", resetAddPhoto);
+  if (hasPhotoUi) {
+    addPhotoInput.addEventListener("change", async function () {
+      var f = addPhotoInput.files && addPhotoInput.files[0];
+      if (!f) return;
+      try {
+        pendingPhotoDataUrl = await fileToThumbnailDataUrl(f, 480, 0.75);
+      } catch (e) {
+        console.warn("photo resize failed", e);
+        pendingPhotoDataUrl = null;
+        return;
+      }
+      addPhotoPreview.src = pendingPhotoDataUrl;
+      addPhotoPreview.style.display = "block";
+      addPhotoCopy.style.display = "none";
+      addPhotoDrop.classList.add("has-file");
+      addPhotoRemoveBtn.style.display = "";
+    });
+    addPhotoRemoveBtn.addEventListener("click", resetAddPhoto);
+  }
 
   var statusToggle = document.getElementById("f-status-toggle");
   var currentStatus = "bought";
-  statusToggle.querySelectorAll("button").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      currentStatus = btn.dataset.status;
-      statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b === btn); });
+  if (statusToggle) {
+    statusToggle.querySelectorAll("button").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        currentStatus = btn.dataset.status;
+        statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      });
     });
-  });
+  }
 
   manualForm.addEventListener("submit", function (e) {
     e.preventDefault();
@@ -351,7 +358,7 @@
     resetAddPhoto();
     updateAddQuickSearch();
     currentStatus = "bought";
-    statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b.dataset.status === "bought"); });
+    if (statusToggle) statusToggle.querySelectorAll("button").forEach(function (b) { b.classList.toggle("active", b.dataset.status === "bought"); });
   });
 
   // ---------- mode toggle ----------
@@ -621,7 +628,7 @@
     var html = "";
     html += '<div class="banner">글자 인식 결과에서 품목 ' + items.length + '개를 찾았어요. 잘못 읽힌 항목은 아래에서 고치거나 지워주세요. 원문 텍스트를 보고 직접 추가할 수도 있어요.</div>';
     html += '<div class="parsed-meta">';
-    html += '<div class="field"><label>구매처</label><input type="text" id="p-store" list="dl-stores" placeholder="구매처 입력"/></div>';
+    html += '<div class="field"><label>구매처</label><input type="text" id="p-store" placeholder="구매처 입력" autocomplete="off"/></div>';
     html += '<div class="field"><label>날짜</label><input type="date" id="p-date" value="' + escAttr(date) + '"/></div>';
     html += '</div>';
     html += '<div class="parsed-rows-head"><span>품목명</span><span>가격</span><span>수량</span><span></span></div>';
@@ -632,6 +639,7 @@
     html += '<button type="button" class="btn btn-primary" id="save-parsed" style="margin-top:14px;">' +
       (items.length ? items.length + "개 품목 저장" : "저장할 품목 없음") + '</button>';
     resultEl.innerHTML = html;
+    attachSuggest(document.getElementById("p-store"), distinctStoreNames);
 
     document.getElementById("toggle-raw").addEventListener("click", function () {
       var el = document.getElementById("raw-text");
@@ -761,7 +769,7 @@
       "</div>" +
       '<div class="field"><label>상품명</label><input type="text" class="ed-name" value="' + escAttr(r.itemName) + '"/></div>' +
       '<div class="row2">' +
-      '<div class="field"><label>구매처</label><input type="text" class="ed-store" list="dl-stores" value="' + escAttr(r.store) + '"/></div>' +
+      '<div class="field"><label>구매처</label><input type="text" class="ed-store" autocomplete="off" value="' + escAttr(r.store) + '"/></div>' +
       '<div class="field"><label>날짜</label><input type="date" class="ed-date" value="' + escAttr(r.date) + '"/></div>' +
       "</div>" +
       '<div class="field"><label>가격 (원)</label><input type="number" class="ed-price price-input" value="' + (isFinite(r.price) ? r.price : "") + '"/></div>' +
@@ -875,6 +883,7 @@
 
     listEl.querySelectorAll(".rec-edit").forEach(function (row) {
       var id = row.dataset.id;
+      attachSuggest(row.querySelector(".ed-store"), distinctStoreNames);
       var edAmount = row.querySelector(".ed-qty-amount");
       var edUnit = row.querySelector(".ed-qty-unit");
       var edPreview = row.querySelector(".ed-unit-preview");
@@ -1027,17 +1036,76 @@
     resultEl2.innerHTML = html;
   }
 
-  // ---------- datalists ----------
-  function renderDatalists() {
-    var items = Array.from(new Set(state.purchases.map(function (r) { return r.itemName; }).filter(Boolean)));
-    var stores = Array.from(new Set(state.purchases.map(function (r) { return r.store; }).filter(Boolean)));
-    var dlItems = document.getElementById("dl-items");
-    var dlItemsCmp = document.getElementById("dl-items-cmp");
-    var dlStores = document.getElementById("dl-stores");
-    dlItems.innerHTML = items.map(function (i) { return '<option value="' + escAttr(i) + '">'; }).join("");
-    dlItemsCmp.innerHTML = dlItems.innerHTML;
-    dlStores.innerHTML = stores.map(function (s) { return '<option value="' + escAttr(s) + '">'; }).join("");
+  // ---------- previous-value suggestion dropdowns ----------
+  // replaces native <datalist> (unreliable/invisible on several mobile
+  // browsers) with a small custom dropdown that reliably shows on tap.
+  function distinctItemNames() {
+    var seen = {}, out = [];
+    state.purchases.forEach(function (r) { if (r.itemName && !seen[r.itemName]) { seen[r.itemName] = true; out.push(r.itemName); } });
+    return out;
+  }
+  function distinctStoreNames() {
+    var seen = {}, out = [];
+    state.purchases.forEach(function (r) { if (r.store && !seen[r.store]) { seen[r.store] = true; out.push(r.store); } });
+    return out;
+  }
+  function distinctItemAndStoreNames() {
+    var seen = {}, out = [];
+    distinctItemNames().concat(distinctStoreNames()).forEach(function (v) { if (!seen[v]) { seen[v] = true; out.push(v); } });
+    return out;
   }
 
+  function attachSuggest(input, getOptions) {
+    if (!input || input.dataset.suggestAttached) return;
+    input.dataset.suggestAttached = "1";
+    var parent = input.parentElement;
+    parent.style.position = "relative";
+    var listEl = document.createElement("div");
+    listEl.className = "suggest-list";
+    parent.insertBefore(listEl, input.nextSibling);
+
+    var suppressNextRender = false;
+    function render() {
+      if (suppressNextRender) { suppressNextRender = false; return; }
+      var q = (input.value || "").trim().toLowerCase();
+      var options = getOptions().filter(function (o) { return !q || o.toLowerCase().indexOf(q) >= 0; }).slice(0, 30);
+      if (!options.length) { listEl.classList.remove("show"); listEl.innerHTML = ""; return; }
+      listEl.innerHTML = options.map(function (o) {
+        return '<div class="suggest-item" data-val="' + escAttr(o) + '">' + escHtml(o) + "</div>";
+      }).join("");
+      listEl.classList.add("show");
+    }
+    input.addEventListener("focus", render);
+    input.addEventListener("input", render);
+    listEl.addEventListener("mousedown", function (e) {
+      var item = e.target.closest(".suggest-item");
+      if (!item) return;
+      e.preventDefault();
+      input.value = item.dataset.val;
+      listEl.classList.remove("show");
+      suppressNextRender = true; // selecting shouldn't immediately reopen the list
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    input.addEventListener("blur", function () {
+      setTimeout(function () { listEl.classList.remove("show"); }, 150);
+    });
+  }
+
+  attachSuggest(document.getElementById("f-name"), distinctItemNames);
+  attachSuggest(document.getElementById("f-store"), distinctStoreNames);
+  attachSuggest(document.getElementById("cmp-select"), distinctItemNames);
+  attachSuggest(document.getElementById("search-records"), distinctItemAndStoreNames);
+  attachSuggest(document.getElementById("bulk-store"), distinctStoreNames);
+
   renderAll();
+
+  } catch (err) {
+    // never fail silently to a blank/frozen page — surface what broke so it
+    // can be fixed, instead of the whole app appearing to just "die"
+    console.error("app init failed", err);
+    var banner = document.createElement("div");
+    banner.style.cssText = "margin:20px;padding:14px 16px;border-radius:10px;background:#f5e7d6;color:#8a4b12;font-family:sans-serif;font-size:13px;line-height:1.6;white-space:pre-wrap;";
+    banner.textContent = "앱을 불러오는 중 오류가 발생했어요. 이 메시지를 캡처해서 알려주세요:\n" + (err && (err.stack || err.message) || String(err));
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
 })();
